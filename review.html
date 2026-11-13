@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BallVision · 结果复核</title>
+  <style>
+    :root { --bg:#f4f6f8; --card:#fff; --ink:#19232d; --muted:#7a8792; --line:#e5ebf0; --brand:#df5f3d; --blue:#3d6dd8; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif; }
+    .wrap { max-width:1180px; margin:0 auto; padding:28px 22px 60px; }
+    header { display:flex; justify-content:space-between; align-items:flex-end; gap:18px; margin-bottom:22px; }
+    h1 { margin:0; font-size:28px; letter-spacing:-.04em; } h2 { margin:0; font-size:17px; }
+    p { margin:7px 0 0; color:var(--muted); font-size:13px; }
+    .actions { display:flex; gap:8px; align-items:center; }
+    button, .file-label { border:0; border-radius:11px; padding:10px 13px; background:var(--brand); color:#fff; font-weight:700; cursor:pointer; font-size:12px; }
+    .file-label { display:inline-block; background:#26384a; }
+    input[type=file] { display:none; }
+    .grid { display:grid; grid-template-columns:1.35fr .9fr; gap:16px; }
+    .panel { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:18px; box-shadow:0 8px 22px rgba(25,35,45,.04); }
+    .panel + .panel { margin-top:16px; }
+    .panel-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+    .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+    .stat { background:#f8fafb; border-radius:13px; padding:13px; } .stat b { display:block; font-size:22px; margin-top:5px; } .stat span { color:var(--muted); font-size:11px; }
+    video { display:block; width:100%; max-height:430px; border-radius:13px; background:#101820; }
+    .timeline { position:relative; height:34px; background:#edf1f4; border-radius:9px; margin-top:14px; overflow:hidden; }
+    .tick { position:absolute; top:0; bottom:0; width:2px; background:var(--brand); opacity:.8; }
+    .track-list { max-height:315px; overflow:auto; }
+    .track { display:grid; grid-template-columns:90px 1fr 90px; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); font-size:12px; }
+    .track:last-child { border-bottom:0; } .track b { font-size:13px; } .track small { color:var(--muted); }
+    .bar { height:8px; border-radius:8px; background:#edf1f4; overflow:hidden; } .bar i { display:block; height:100%; background:var(--blue); border-radius:inherit; }
+    table { width:100%; border-collapse:collapse; font-size:12px; } th,td { text-align:left; padding:10px 6px; border-bottom:1px solid var(--line); } th { color:var(--muted); font-weight:700; }
+    .empty { padding:34px 12px; text-align:center; color:var(--muted); font-size:13px; }
+    .hint { background:#fff8ee; color:#98621d; border-radius:12px; padding:11px 12px; line-height:1.5; font-size:12px; margin-top:13px; }
+    @media (max-width:850px) { .grid { grid-template-columns:1fr; } header { align-items:flex-start; flex-direction:column; } .stats { grid-template-columns:repeat(2,1fr); } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div><h1>BallVision 结果复核</h1><p>查看检测结果、轨迹连续性和待确认事件</p></div>
+      <div class="actions"><label class="file-label">载入 JSON <input id="jsonFile" type="file" accept=".json,application/json"></label><label class="file-label">载入视频 <input id="videoFile" type="file" accept="video/*"></label></div>
+    </header>
+    <div class="grid">
+      <div>
+        <section class="panel"><div class="panel-head"><h2>比赛视频</h2><span id="modelName" style="color:var(--muted);font-size:11px">等待载入结果</span></div><video id="video" controls></video><div class="timeline" id="timeline"></div><div class="hint">点击轨迹记录可以跳转到对应时间点。当前页面用于校验模型输出，后续会接入事件确认和身份绑定。</div></section>
+        <section class="panel"><div class="panel-head"><h2>轨迹摘要</h2><span id="trackHint" style="color:var(--muted);font-size:11px"></span></div><div class="track-list" id="tracks"><div class="empty">请先载入连续帧 JSON</div></div></section>
+      </div>
+      <div>
+        <section class="panel"><div class="panel-head"><h2>运行概览</h2></div><div class="stats"><div class="stat"><span>处理帧数</span><b id="frames">—</b></div><div class="stat"><span>球员检测</span><b id="people">—</b></div><div class="stat"><span>篮球检测</span><b id="balls">—</b></div><div class="stat"><span>球员轨迹</span><b id="personTracks">—</b></div></div></section>
+        <section class="panel"><div class="panel-head"><h2>待确认事件</h2><button onclick="downloadCorrected()">下载修正 JSON</button></div><div id="events"><div class="empty">载入包含 events 的结果 JSON 后，会在这里显示投篮和篮板候选。</div></div></section>
+        <section class="panel"><div class="panel-head"><h2>身份绑定</h2></div><table><thead><tr><th>轨迹</th><th>当前状态</th><th>操作</th></tr></thead><tbody id="identityRows"><tr><td colspan="3" class="empty">等待轨迹数据</td></tr></tbody></table></section>
+      </div>
+    </div>
+  </div>
+  <script>
+    let manifest = null;
+    const $ = id => document.getElementById(id);
+    function setVideo(file) { if (file) $('video').src = URL.createObjectURL(file); }
+    function render(data) {
+      manifest = data;
+      $('modelName').textContent = data.model || '未知模型';
+      $('frames').textContent = data.processed_frames ?? data.sampled_frames ?? '—';
+      $('people').textContent = data.detector_person_boxes ?? data.person_detection_count ?? '—';
+      $('balls').textContent = data.detector_ball_boxes ?? data.ball_detection_count ?? '—';
+      $('personTracks').textContent = data.person_track_count ?? '—';
+      const records = data.records_every_5_frames || data.records || [];
+      const byTrack = new Map();
+      records.forEach(record => (record.people || []).forEach(item => {
+        const current = byTrack.get(item.track_id) || { id:item.track_id, count:0, first:record.timestamp_s, last:record.timestamp_s };
+        current.count += 1; current.last = record.timestamp_s; byTrack.set(item.track_id, current);
+      }));
+      const tracks = [...byTrack.values()].sort((a,b) => b.count - a.count).slice(0, 30);
+      $('trackHint').textContent = `${byTrack.size} 条轨迹，显示最长 30 条`;
+      $('tracks').innerHTML = tracks.length ? tracks.map(track => `<div class="track" onclick="seek(${track.first})"><b>P${track.id}</b><div><div class="bar"><i style="width:${Math.min(100, track.count / Math.max(1, records.length) * 100)}%"></i></div><small>${track.first.toFixed(1)}s — ${track.last.toFixed(1)}s</small></div><small>${track.count} 点</small></div>`).join('') : '<div class="empty">没有可展示的球员轨迹</div>';
+      $('identityRows').innerHTML = tracks.slice(0, 8).map(track => `<tr><td>P${track.id}</td><td>临时身份</td><td><button style="padding:6px 8px" onclick="alert('身份绑定接口将在下一轮接入')">绑定</button></td></tr>`).join('') || '<tr><td colspan="3" class="empty">等待轨迹数据</td></tr>';
+      renderEvents(data.events || []);
+      const timeline = $('timeline'); timeline.innerHTML = '';
+      const duration = data.duration_s || Math.max(...records.map(item => item.timestamp_s || 0), 1);
+      tracks.slice(0, 30).forEach(track => { const tick = document.createElement('i'); tick.className='tick'; tick.style.left = `${track.first / duration * 100}%`; timeline.appendChild(tick); });
+    }
+    function renderEvents(events) {
+      if (!events.length) { $('events').innerHTML = '<div class="empty">当前结果没有事件候选</div>'; return; }
+      $('events').innerHTML = events.map((event, index) => `<div style="padding:11px 0;border-bottom:1px solid var(--line)"><div style="display:flex;justify-content:space-between;gap:8px"><b>${event.event_type}</b><small style="color:var(--muted)">${Number(event.timestamp_s).toFixed(2)}s · ${event.review_status || 'pending'}</small></div><div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px"><input style="width:100px;padding:7px 8px;border:1px solid var(--line);border-radius:8px" value="${event.player_id || ''}" placeholder="选手 ID" onchange="setEvent(${index},'player_id',this.value)"><button style="padding:7px 9px;background:#2e956f" onclick="setEvent(${index},'event_type','shot_made');setEvent(${index},'outcome','made');setEvent(${index},'confirmed',true)">命中</button><button style="padding:7px 9px;background:#677584" onclick="setEvent(${index},'event_type','shot_missed');setEvent(${index},'outcome','missed');setEvent(${index},'confirmed',true)">不中</button><button style="padding:7px 9px;background:#3d6dd8" onclick="setEvent(${index},'event_type','rebound');setEvent(${index},'confirmed',true)">篮板</button><button style="padding:7px 9px;background:#a66b20" onclick="setEvent(${index},'review_status','rejected');setEvent(${index},'confirmed',false)">忽略</button></div></div>`).join('');
+    }
+    function setEvent(index, key, value) { if (!manifest.events) manifest.events = []; manifest.events[index][key] = value; manifest.events[index].review_status = value === 'rejected' ? 'rejected' : (value === true || key === 'event_type' ? 'confirmed' : manifest.events[index].review_status); renderEvents(manifest.events); }
+    function downloadCorrected() { if (!manifest) return; const blob = new Blob([JSON.stringify(manifest, null, 2)], {type:'application/json'}); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'ballvision-corrected.json'; link.click(); URL.revokeObjectURL(link.href); }
+    function seek(time) { if ($('video').src) { $('video').currentTime = time; $('video').play().catch(() => {}); } }
+    $('jsonFile').addEventListener('change', event => { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => render(JSON.parse(reader.result)); reader.readAsText(file); });
+    $('videoFile').addEventListener('change', event => setVideo(event.target.files[0]));
+  </script>
+</body>
+</html>
