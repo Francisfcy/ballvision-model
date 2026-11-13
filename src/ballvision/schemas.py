@@ -102,3 +102,17 @@ class ScoreObservationCreate(BaseModel):
     timestamp_s: float = Field(ge=0)
     team_scores: dict[str, int] = Field(default_factory=dict)
     source: Literal["manual", "ocr", "imported"] = "manual"
+
+
+class TrackBinding(BaseModel):
+    track_id: str
+    player_id: str
+    team_id: str | None = None
+    source: Literal["manual", "appearance", "jersey", "imported"] = "manual"
+
+
+class TrackBindingCreate(BaseModel):
+    track_id: str
+    player_id: str
+    team_id: str | None = None
+    source: Literal["manual", "appearance", "jersey", "imported"] = "manual"

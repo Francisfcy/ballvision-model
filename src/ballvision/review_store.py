@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from .events import build_box_score
 from .score_validation import validate_score_changes
-from .schemas import Event, EventUpdate, ReviewSession, ScoreObservation, ScoreObservationCreate
+from .schemas import Event, EventUpdate, ReviewSession, ScoreObservation, ScoreObservationCreate, TrackBinding, TrackBindingCreate
 
 
 class ReviewStore:
@@ -49,6 +49,13 @@ class ReviewStore:
                     action TEXT NOT NULL,
                     payload_json TEXT NOT NULL,
                     created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS track_bindings (
+                    session_id TEXT NOT NULL,
+                    track_id TEXT NOT NULL,
+                    binding_json TEXT NOT NULL,
+                    PRIMARY KEY(session_id, track_id),
+                    FOREIGN KEY(session_id) REFERENCES review_sessions(session_id)
                 );
                 """
             )
@@ -111,3 +118,23 @@ class ReviewStore:
             "box_score": build_box_score(session.events),
             "score_validation": validate_score_changes(session.events, observations),
         }
+
+    def bind_track(self, session_id: str, payload: TrackBindingCreate) -> TrackBinding:
+        self.get(session_id)
+        binding = TrackBinding(**payload.model_dump())
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO track_bindings(session_id, track_id, binding_json) VALUES (?, ?, ?)",
+                (session_id, binding.track_id, json.dumps(binding.model_dump(), ensure_ascii=False)),
+            )
+            connection.execute(
+                "INSERT INTO review_audit(audit_id, session_id, event_id, action, payload_json, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))",
+                (str(uuid4()), session_id, None, "bind_track", json.dumps(binding.model_dump(), ensure_ascii=False)),
+            )
+        return binding
+
+    def get_bindings(self, session_id: str) -> list[TrackBinding]:
+        self.get(session_id)
+        with self._connect() as connection:
+            rows = connection.execute("SELECT binding_json FROM track_bindings WHERE session_id = ? ORDER BY track_id", (session_id,)).fetchall()
+        return [TrackBinding.model_validate(json.loads(row["binding_json"])) for row in rows]

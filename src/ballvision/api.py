@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import FastAPI
 
 from .review_store import ReviewStore
-from .schemas import AnalysisJob, EventUpdate, ReviewSession, ReviewSessionCreate, ScoreObservation, ScoreObservationCreate
+from .schemas import AnalysisJob, EventUpdate, ReviewSession, ReviewSessionCreate, ScoreObservation, ScoreObservationCreate, TrackBinding, TrackBindingCreate
 
 app = FastAPI(title="BallVision Model API", version="0.1.0")
 review_store = ReviewStore()
@@ -57,3 +57,13 @@ def add_score_observation(session_id: str, payload: ScoreObservationCreate) -> S
 @app.post("/review/sessions/{session_id}/validate-score")
 def validate_score(session_id: str) -> dict[str, object]:
     return review_store.recalculate(session_id)["score_validation"]
+
+
+@app.post("/review/sessions/{session_id}/bindings", response_model=TrackBinding)
+def bind_track(session_id: str, payload: TrackBindingCreate) -> TrackBinding:
+    return review_store.bind_track(session_id, payload)
+
+
+@app.get("/review/sessions/{session_id}/bindings", response_model=list[TrackBinding])
+def get_bindings(session_id: str) -> list[TrackBinding]:
+    return review_store.get_bindings(session_id)

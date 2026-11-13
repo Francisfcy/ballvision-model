@@ -59,6 +59,7 @@
     function setVideo(file) { if (file) $('video').src = URL.createObjectURL(file); }
     function render(data) {
       manifest = data;
+      manifest.bindings = manifest.bindings || {};
       $('modelName').textContent = data.model || '未知模型';
       $('frames').textContent = data.processed_frames ?? data.sampled_frames ?? '—';
       $('people').textContent = data.detector_person_boxes ?? data.person_detection_count ?? '—';
@@ -73,7 +74,7 @@
       const tracks = [...byTrack.values()].sort((a,b) => b.count - a.count).slice(0, 30);
       $('trackHint').textContent = `${byTrack.size} 条轨迹，显示最长 30 条`;
       $('tracks').innerHTML = tracks.length ? tracks.map(track => `<div class="track" onclick="seek(${track.first})"><b>P${track.id}</b><div><div class="bar"><i style="width:${Math.min(100, track.count / Math.max(1, records.length) * 100)}%"></i></div><small>${track.first.toFixed(1)}s — ${track.last.toFixed(1)}s</small></div><small>${track.count} 点</small></div>`).join('') : '<div class="empty">没有可展示的球员轨迹</div>';
-      $('identityRows').innerHTML = tracks.slice(0, 8).map(track => `<tr><td>P${track.id}</td><td>临时身份</td><td><button style="padding:6px 8px" onclick="alert('身份绑定接口将在下一轮接入')">绑定</button></td></tr>`).join('') || '<tr><td colspan="3" class="empty">等待轨迹数据</td></tr>';
+      $('identityRows').innerHTML = tracks.slice(0, 8).map((track, index) => `<tr><td>P${track.id}</td><td><input id="bind-${index}" style="width:100px;padding:6px 8px;border:1px solid var(--line);border-radius:8px" value="${manifest.bindings[track.id] || ''}" placeholder="姓名或 ID"></td><td><button style="padding:6px 8px" onclick="bindTrack('${track.id}',${index})">绑定</button></td></tr>`).join('') || '<tr><td colspan="3" class="empty">等待轨迹数据</td></tr>';
       renderEvents(data.events || []);
       const timeline = $('timeline'); timeline.innerHTML = '';
       const duration = data.duration_s || Math.max(...records.map(item => item.timestamp_s || 0), 1);
@@ -84,6 +85,7 @@
       $('events').innerHTML = events.map((event, index) => `<div style="padding:11px 0;border-bottom:1px solid var(--line)"><div style="display:flex;justify-content:space-between;gap:8px"><b>${event.event_type}</b><small style="color:var(--muted)">${Number(event.timestamp_s).toFixed(2)}s · ${event.review_status || 'pending'}</small></div><div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px"><input style="width:100px;padding:7px 8px;border:1px solid var(--line);border-radius:8px" value="${event.player_id || ''}" placeholder="选手 ID" onchange="setEvent(${index},'player_id',this.value)"><button style="padding:7px 9px;background:#2e956f" onclick="setEvent(${index},'event_type','shot_made');setEvent(${index},'outcome','made');setEvent(${index},'confirmed',true)">命中</button><button style="padding:7px 9px;background:#677584" onclick="setEvent(${index},'event_type','shot_missed');setEvent(${index},'outcome','missed');setEvent(${index},'confirmed',true)">不中</button><button style="padding:7px 9px;background:#3d6dd8" onclick="setEvent(${index},'event_type','rebound');setEvent(${index},'confirmed',true)">篮板</button><button style="padding:7px 9px;background:#a66b20" onclick="setEvent(${index},'review_status','rejected');setEvent(${index},'confirmed',false)">忽略</button></div></div>`).join('');
     }
     function setEvent(index, key, value) { if (!manifest.events) manifest.events = []; manifest.events[index][key] = value; manifest.events[index].review_status = value === 'rejected' ? 'rejected' : (value === true || key === 'event_type' ? 'confirmed' : manifest.events[index].review_status); renderEvents(manifest.events); }
+    function bindTrack(trackId, index) { const playerId = document.getElementById(`bind-${index}`).value.trim(); if (!playerId) return; manifest.bindings[trackId] = playerId; (manifest.events || []).forEach(event => { if (String(event.track_id) === String(trackId)) event.player_id = playerId; }); render(manifest); }
     function downloadCorrected() { if (!manifest) return; const blob = new Blob([JSON.stringify(manifest, null, 2)], {type:'application/json'}); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'ballvision-corrected.json'; link.click(); URL.revokeObjectURL(link.href); }
     function seek(time) { if ($('video').src) { $('video').currentTime = time; $('video').play().catch(() => {}); } }
     $('jsonFile').addEventListener('change', event => { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => render(JSON.parse(reader.result)); reader.readAsText(file); });

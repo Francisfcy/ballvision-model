@@ -66,6 +66,8 @@ PATCH /review/sessions/{session_id}/events/{event_id}
 POST  /review/sessions/{session_id}/score-observations
 POST  /review/sessions/{session_id}/validate-score
 POST  /review/sessions/{session_id}/recalculate
+POST  /review/sessions/{session_id}/bindings
+GET   /review/sessions/{session_id}/bindings
 ```
 
 比分条 OCR 基线使用 RapidOCR，在 CPU 上读取底部比分区域：
