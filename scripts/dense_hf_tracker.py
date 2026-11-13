@@ -143,6 +143,8 @@ while True:
         result = processor.post_process_object_detection(outputs, threshold=0.15, target_sizes=torch.tensor([[height, width]]))[0]
         for bbox, confidence, label in zip(result["boxes"].tolist(), result["scores"].tolist(), result["labels"].tolist()):
             x1, y1, x2, y2 = [float(value) for value in bbox]
+            bbox = [max(0.0, min(width, x1)), max(0.0, min(height, y1)), max(0.0, min(width, x2)), max(0.0, min(height, y2))]
+            x1, y1, x2, y2 = bbox
             center_x = (x1 + x2) / 2
             center_y = (y1 + y2) / 2
             if label == 1 and confidence >= 0.35 and 110 <= center_x <= width - 20 and 60 <= center_y <= height - 60 and (y2 - y1) >= 30:
