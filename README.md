@@ -49,6 +49,25 @@ python -c "import torch; print(torch.cuda.is_available()); print(torch.cuda.get_
 
 `run_hf_basketball_detector.py` 和 `dense_hf_tracker.py` 会自动选择 CUDA，并在 CUDA 上使用半精度推理。
 
+## 人工修正和比分校验
+
+人工修正保存在 SQLite。默认数据库是 `data/ballvision.sqlite3`，可以通过 `BALLVISION_DB_PATH` 指定其他路径。
+
+```powershell
+$env:PYTHONPATH = "src"
+$env:BALLVISION_DB_PATH = "data\video-demo.sqlite3"
+python scripts/import_review.py results\events.json --score 0 GS=7 HOU=12 --score 10 GS=7 HOU=17
+```
+
+接口包括事件更新、比分观测和比分校验：
+
+```text
+PATCH /review/sessions/{session_id}/events/{event_id}
+POST  /review/sessions/{session_id}/score-observations
+POST  /review/sessions/{session_id}/validate-score
+POST  /review/sessions/{session_id}/recalculate
+```
+
 ## 篮球专用检测器
 
 当前已经加入公开的篮球微调 RF-DETR 权重，存放在 `weights/hf-basketball/`。它输出 `ball`、`player` 和 `referee` 三类结果。完整视频的抽样结果保存在 `results/7885500b16c41d41a183d78707cc077a-hf-basketball.json`。
