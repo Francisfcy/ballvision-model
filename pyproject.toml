@@ -14,7 +14,8 @@ dependencies = [
   "ultralytics>=8.4",
   "opencv-python>=5.0",
   "rfdetr>=1.12",
-  "transformers>=5.22"
+  "transformers>=5.22",
+  "rapidocr_onnxruntime>=1.4"
 ]
 
 [tool.setuptools.packages.find]

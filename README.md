@@ -68,6 +68,15 @@ POST  /review/sessions/{session_id}/validate-score
 POST  /review/sessions/{session_id}/recalculate
 ```
 
+比分条 OCR 基线使用 RapidOCR，在 CPU 上读取底部比分区域：
+
+```powershell
+python scripts/ocr_scoreboard.py path\to\game.mp4 --output results\score-ocr.json --teams GS HOU
+python scripts/import_review.py results\events.json --score-json results\score-ocr.json
+```
+
+OCR 结果会保留原始文字框和置信度，比分校验只使用通过队名和数字配对的观测。
+
 ## 篮球专用检测器
 
 当前已经加入公开的篮球微调 RF-DETR 权重，存放在 `weights/hf-basketball/`。它输出 `ball`、`player` 和 `referee` 三类结果。完整视频的抽样结果保存在 `results/7885500b16c41d41a183d78707cc077a-hf-basketball.json`。
